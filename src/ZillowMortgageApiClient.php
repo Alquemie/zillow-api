@@ -12,14 +12,14 @@ use ZillowApi\Model\Response;
 /**
  * Zillow PHP API Client
  *
- * @author Brent Mullen <brent.mullen@gmail.com>
+ * @author Chris Carrel <support@alquemie.net>
  */
-class ZillowApiClient
+class ZillowMortgageApiClient
 {
     /**
      * @var string
      */
-    protected $url = 'http://www.zillow.com/webservice/';
+    protected $url = 'https://mortgageapi.zillow.com/';
 
     /**
      * @var GuzzleClient
@@ -65,31 +65,7 @@ class ZillowApiClient
      * Valid API functions
      */
     public static $validMethods = [
-        'GetZestimate',
-        'GetSearchResults',
-        'GetChart',
-        'GetComps',
-        'GetDeepComps',
-        'GetDeepSearchResults',
-        'GetUpdatedPropertyDetails',
-        'GetDemographics',
-        'GetRegionChildren',
-        'GetRegionChart',
-        'GetRateSummary',
-        'GetMonthlyPayments',
-        'CalculateMonthlyPaymentsAdvanced',
-        'CalculateAffordability',
-        'CalculateRefinance',
-        'CalculateAdjustableMortgage',
-        'CalculateMortgageTerms',
-        'CalculateDiscountPoints',
-        'CalculateBiWeeklyPayment',
-        'CalculateNoCostVsTraditional',
-        'CalculateTaxSavings',
-        'CalculateFixedVsAdjustableRate',
-        'CalculateInterstOnlyVsTraditional',
-        'CalculateHELOC',
-        'ProReviews'
+        'zillowLenderReviews',
     ];
 
     /**
@@ -184,7 +160,7 @@ class ZillowApiClient
             $this->url . $call . '.htm',
             [
                 'query' => array_merge(
-                    ['zws-id' => $this->getZwsid()],
+                    ['partnerId' => $this->getZwsid()],
                     $params
                 ),
             ]
@@ -201,31 +177,14 @@ class ZillowApiClient
      */
     protected function parseResponse($call, ResponseInterface $rawResponse)
     {
-        $response      = new Response();
-
         if ($rawResponse->getStatusCode() === '200') {
             try {
-                $responseArray = json_decode(json_encode(simplexml_load_string($rawResponse->getBody())));
+                $response = json_decode($rawResponse->getBody());
             } catch (XmlParseException $e) {
-                $this->fail($response, $rawResponse, true, $e);
-
-                return $response;
-            }
-
-            $response->setMethod($call);
-
-            if (!array_key_exists('message', $responseArray)) {
-                $this->fail($response, $rawResponse, false);
-            } else {
-                $response->setCode(intval($responseArray['message']['code']));
-                $response->setMessage($responseArray['message']['text']);
-            }
-
-            if ($response->isSuccessful() && array_key_exists('response', $responseArray)) {
-                $response->setData($responseArray['response']);
+                $this->fail($rawResponse, true, $e);
             }
         } else {
-            $this->fail($response, $rawResponse, true);
+            $this->fail($rawResponse, true);
         }
 
         return $response;
@@ -237,11 +196,8 @@ class ZillowApiClient
      * @param bool $logException
      * @param null $exception
      */
-    private function fail(Response $response, ResponseInterface $rawResponse, $logException = false, $exception = null)
+    private function fail(ResponseInterface $rawResponse, $logException = false, $exception = null)
     {
-        $response->setCode(999);
-        $response->setMessage('Invalid response received.');
-
         if ($logException && $this->logger) {
             $this->logger->error(
                 new \Exception(
