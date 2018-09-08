@@ -2,10 +2,9 @@
 
 namespace ZillowApi;
 
-use GuzzleHttp\Client as GuzzleClient;
-use GuzzleHttp\ClientInterface as GuzzleClientInterface;
-use GuzzleHttp\Exception\XmlParseException;
-use GuzzleHttp\Message\ResponseInterface;
+use GuzzleHttp\Pool;
+use GuzzleHttp\Client;
+use GuzzleHttp\Psr7\Request;
 use Psr\Log\LoggerInterface;
 use ZillowApi\Model\Response;
 
@@ -50,11 +49,6 @@ class ZillowMortgageApiClient
      * @var array
      */
     protected $results;
-
-    /**
-     * @var array
-     */
-    protected $photos = [];
 
     /** @var LoggerInterface */
     protected $logger;
@@ -115,12 +109,11 @@ class ZillowMortgageApiClient
     public function getClient()
     {
         if (!$this->client) {
-            $this->client = new GuzzleClient(
+            $this->client = new Client(
                 [
-                    'defaults' => [
-                        'allow_redirects' => false,
-                        'cookies'         => true
-                    ]
+                    'base_uri' => $this->url,
+                    'allow_redirects' => false,
+                    'cookies'         => true
                 ]
             );
         }
@@ -153,11 +146,12 @@ class ZillowMortgageApiClient
     protected function doRequest($call, array $params)
     {
         if (!$this->getZwsid()) {
-            throw new ZillowException('Missing ZWS-ID');
+            throw new ZillowException('Missing Partner-ID');
         }
+        $result = array();  // remove later
 
         $response = $this->getClient()->get(
-            $this->url . $call ,
+            $call,
             [
                 'query' => array_merge(
                     ['partnerId' => $this->getZwsid()],
@@ -165,52 +159,18 @@ class ZillowMortgageApiClient
                 ),
             ]
         );
-
-        return $this->parseResponse($call, $response);
-    }
-
-    /**
-     * @param string $call
-     * @param ResponseInterface $rawResponse
-     *
-     * @return Response
-     */
-    protected function parseResponse($call, ResponseInterface $rawResponse)
-    {
-        if ($rawResponse->getStatusCode() === '200') {
+    
+        if ($response->getStatusCode() == '200') {
             try {
-                $response = json_decode($rawResponse->getBody());
-            } catch (XmlParseException $e) {
-                $this->fail($rawResponse, true, $e);
+                $result = json_decode($response->getBody(true)->getContents());
+            } catch (Exception $e) {
+                throw new ZillowException('Zillow Error: #%d: %s', $e->getCode(), $e->getMessage());
             }
         } else {
-            $this->fail($rawResponse, true);
+            throw new ZillowException('Zillow Response Error: ' . print_r($response,true));
         }
 
-        return $response;
-    }
-
-    /**
-     * @param Response $response
-     * @param ResponseInterface $rawResponse
-     * @param bool $logException
-     * @param null $exception
-     */
-    private function fail(ResponseInterface $rawResponse, $logException = false, $exception = null)
-    {
-        if ($logException && $this->logger) {
-            $this->logger->error(
-                new \Exception(
-                    sprintf(
-                        'Failed Zillow call.  Status code: %s, Response string: %s',
-                        $rawResponse->getStatusCode(),
-                        (string) $rawResponse->getBody()
-                    ),
-                    0,
-                    $exception
-                )
-            );
-        }
+        return $result;
     }
 
     /**
