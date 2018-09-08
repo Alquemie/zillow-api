@@ -157,7 +157,7 @@ class ZillowMortgageApiClient
         }
 
         $response = $this->getClient()->get(
-            $this->url . $call . '.htm',
+            $this->url . $call ,
             [
                 'query' => array_merge(
                     ['partnerId' => $this->getZwsid()],
