@@ -2,10 +2,9 @@
 
 namespace ZillowApi;
 
-use GuzzleHttp\Client as GuzzleClient;
-use GuzzleHttp\ClientInterface as GuzzleClientInterface;
-use GuzzleHttp\Exception\XmlParseException;
-use GuzzleHttp\Message\ResponseInterface;
+use GuzzleHttp\Pool;
+use GuzzleHttp\Client;
+use GuzzleHttp\Psr7\Request;
 use Psr\Log\LoggerInterface;
 use ZillowApi\Model\Response;
 
@@ -139,12 +138,11 @@ class ZillowApiClient
     public function getClient()
     {
         if (!$this->client) {
-            $this->client = new GuzzleClient(
+            $this->client = new Client(
                 [
-                    'defaults' => [
-                        'allow_redirects' => false,
-                        'cookies'         => true
-                    ]
+                    'base_uri' => $this->url,
+                    'allow_redirects' => false,
+                    'cookies'         => true
                 ]
             );
         }
@@ -181,7 +179,7 @@ class ZillowApiClient
         }
 
         $response = $this->getClient()->get(
-            $this->url . $call . '.htm',
+            $call . '.htm',
             [
                 'query' => array_merge(
                     ['zws-id' => $this->getZwsid()],
